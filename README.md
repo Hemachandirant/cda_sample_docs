@@ -1,393 +1,379 @@
-from fastapi import FastAPI, UploadFile, File
-import csv
-import mysql.connector
-import io
-import pandas as pd
-from typing import List
-from fastapi.middleware.cors import CORSMiddleware
-import logging
-import os
-import tempfile
-from tempfile import NamedTemporaryFile
-from sqlalchemy import create_engine, Table, Column, MetaData, ForeignKey, String
-from sqlalchemy.dialects.mysql import VARCHAR
-import chardet
-import numpy as np
-from pydantic import BaseModel
-import platform
-import subprocess
+document.addEventListener("DOMContentLoaded", function () {
+    var next_click = document.querySelectorAll(".next_button");
+    var main_form = document.querySelectorAll(".main");
+    var step_list = document.querySelectorAll(".progress-bar li");
+    var num = document.querySelector(".step-number");
+    let formnumber = 0;
+    const nextStepButton = document.getElementById("nextStepButton");
+    const loader = document.getElementById('loader');
+    const sanitizationLoader = document.getElementById('sanitizationLoader');
 
-# Set up logging configuration
-logging.basicConfig(level=logging.DEBUG)
+    const newProjectInput = document.getElementById('newProjectInput');
+    const existingProjectSelect = document.getElementById('existingProjectSelect');
+    const fileInput = document.getElementById('file-upload');
+    const fileList = document.getElementById('fileList');
+    const autoFixButton = document.getElementById("autoFixButton");
 
-# Global variable to store the db_name
-db_name_global = None
-# Global variables to store file info
-uploaded_files_info = []
-temp_file_paths = []
-file_names = []
-dataVizFile = None
-
-app = FastAPI()
-
-# Allow CORS for your frontend origin
-origins = [
-    "http://127.0.0.1:5501",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allow specific frontend origin
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-class CreateDBRequest(BaseModel):
-    db_name: str
-
-
-import subprocess
-import logging
-import threading
-
-
-import os
-import subprocess
-import logging
-import threading
-import platform
-
-
-def start_streamlit_app(data_viz_file):
-    # Ensure the correct path to the visualization.py script
-    script_path = os.path.abspath(os.path.join("visualization", "visualization.py"))
-    command = f'streamlit run "{script_path}" -- --dataVizFile "{data_viz_file}"'
-    logging.debug("--------------------------------------")
-    logging.debug(f"Streamlit command: {command}")
-
-    def run_streamlit():
-        try:
-            env = os.environ.copy()
-            env["BROWSER"] = "none"
-            env["STREAMLIT_BROWSER_GAP"] = "-1"
-            env["STREAMLIT_SERVER_HEADLESS"] = "true"
-            subprocess.Popen(command, shell=True, env=env)
-            logging.debug("Streamlit app started successfully.")
-        except Exception as e:
-            logging.error(f"Failed to start Streamlit app: {e}")
-
-    thread = threading.Thread(target=run_streamlit)
-    thread.start()
-    logging.debug("Streamlit app started in a new thread.")
-
-
-@app.post("/create_db")
-async def create_db(request: CreateDBRequest):
-    global db_name_global
-    db_name_global = request.db_name
-
-    connection = mysql.connector.connect(
-        host="localhost", user="root", password="admin"
-    )
-    cursor = connection.cursor()
-
-    cursor.execute("SHOW DATABASES")
-    databases = cursor.fetchall()
-
-    if (db_name_global,) in databases:
-        cursor.close()
-        connection.close()
-        return {
-            "status": f"Database {db_name_global} already exists. Using existing database."
+    // Disable/Enable inputs based on user selection
+    newProjectInput.addEventListener('input', () => {
+        if (newProjectInput.value.trim() !== '') {
+            existingProjectSelect.disabled = true;
+            next_click[formnumber].disabled = false;
+        } else {
+            existingProjectSelect.disabled = false;
+            next_click[formnumber].disabled = existingProjectSelect.value === '';
         }
-    else:
-        try:
-            cursor.execute(f"CREATE DATABASE {db_name_global}")
-            cursor.close()
-            connection.close()
-            return {"status": f"Database {db_name_global} created successfully."}
-        except mysql.connector.Error as err:
-            cursor.close()
-            connection.close()
-            return {"error": f"Error creating database: {err}"}
+    });
 
+    existingProjectSelect.addEventListener('change', () => {
+        if (existingProjectSelect.value !== '') {
+            newProjectInput.disabled = true;
+            next_click[formnumber].disabled = false;
+        } else {
+            newProjectInput.disabled = false;
+            next_click[formnumber].disabled = newProjectInput.value.trim() === '';
+        }
+    });
 
-@app.post("/upload_file_info")
-async def upload_file_info(files: List[UploadFile] = File(...)):
-    global uploaded_files_info
-    global file_names
-    global dataVizFile
-    uploaded_files_info = []
-    file_infos = []
-    file_names = []
-    for file in files:
-        file_extension = os.path.splitext(file.filename)[-1].lower()
-        file_content = await file.read()  # Read file content
-        file_names.append(
-            file.filename.split(".")[0]
-        )  # Store file name without extension
-        # Detect file encoding
-        result = chardet.detect(file_content)
-        encoding = result["encoding"]
-        # Load data into DataFrame based on file extension
-        if file_extension == ".csv":
-            df = pd.read_csv(io.StringIO(file_content.decode(encoding)))
-        elif file_extension == ".xlsx":
-            df = pd.read_excel(io.BytesIO(file_content))
-        else:
-            return {
-                "error": f"Invalid file format in {file.filename}. Please upload a CSV or XLSX file."
+    // Update file list and enable/disable next button
+    fileInput.addEventListener('change', () => {
+        fileList.innerHTML = '';
+        const files = fileInput.files;
+
+        if (files.length > 0) {
+            const fileNames = Array.from(files).map(file => file.name).join(', ');
+            fileList.textContent = fileNames;
+            next_click[1].disabled = false;
+        } else {
+            next_click[1].disabled = true;
+        }
+    });
+
+    next_click.forEach(function (next_click_form) {
+        next_click_form.addEventListener('click', function () {
+            if (!validateform()) {
+                return false;
             }
-        # Calculate file size
-        file_size = len(file_content) / 1024 / 1024  # Size in MB
-        # Store file info
-        file_info = {
-            "filename": file.filename,
-            "total_rows": df.shape[0],
-            "total_columns": df.shape[1],
-            "file_size(MB)": file_size,
-        }
-        # Save the file content to a temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
-        temp_file.write(file_content)
-        temp_file.close()
-        dataVizFile = temp_file.name
-        print(
-            "-------------------------",
-            dataVizFile,
-            "------------------------------------",
-        )
-        logging.debug("File name : ", dataVizFile)
-        # Append the file path and name to the global list
-        uploaded_files_info.append(
-            {"file_path": temp_file.name, "file_name": file.filename}
-        )
-        # Append the file info to the list
-        file_infos.append(file_info)
-        logging.debug(uploaded_files_info)
-    # Log the lengths of the lists
-    logging.debug(f"File names after upload_file_info: {file_names}")
-    logging.debug(f"Temporary file paths after upload_file_info: {uploaded_files_info}")
-    logging.debug(f"Length of file_names after upload_file_info: {len(file_names)}")
-    logging.debug(
-        f"Length of uploaded_files_info after upload_file_info: {len(uploaded_files_info)}"
-    )
+            formnumber++;
+            updateform();
+            progress_forward();
+            contentchange();
 
-    # Start the Streamlit app with the data file
-    start_streamlit_app(dataVizFile)
+            // Call the appropriate backend function based on the current step
+            switch (formnumber) {
+                case 1:
+                    createDatabase();
+                    break;
+                case 2:
+                    uploadFilesAndGetInfo();
+                    break;
+                case 3:
+                    // File Stats Step: File stats are already updated in uploadFilesAndGetInfo()
+                    break;
+                case 4:
+                    sanitizeData();
+                    break;
+                case 5:
+                    createTablesAndInsertData();
+                    break;
+                default:
+                    break;
+            }
 
-    return {
-        "file_info": file_infos,
-        "saved_files": uploaded_files_info,
-        "file_names": file_names,
-        "dataVizFile": dataVizFile,
+            // Disable the "Next Step" button when it's clicked
+            next_click_form.disabled = true;
+        });
+    });
+
+    var back_click = document.querySelectorAll(".back_button");
+    back_click.forEach(function (back_click_form) {
+        back_click_form.addEventListener('click', function () {
+            if (formnumber > 0) {
+                formnumber--;
+                updateform();
+                progress_backward();
+                contentchange();
+
+                // Re-enable the "Next Step" button when navigating back
+                next_click[formnumber].disabled = false;
+            }
+        });
+    });
+
+    var submit_click = document.querySelectorAll(".submit_button");
+    submit_click.forEach(function (submit_click_form) {
+        submit_click_form.addEventListener('click', function () {
+            if (!validateform()) {
+                return false;
+            }
+            formnumber++;
+            updateform();
+        });
+    });
+
+    function updateform() {
+        main_form.forEach(function (mainform_number, index) {
+            mainform_number.classList.remove('active');
+            if (index === formnumber) {
+                mainform_number.classList.add('active');
+            }
+        });
     }
 
-
-@app.post("/upload_and_clean")
-async def upload_and_clean():
-    global uploaded_files_info
-    global temp_file_paths  # Reference the global variable
-    sanitization_infos = []
-
-    for file_info in uploaded_files_info:
-        file_path = file_info["file_path"]
-        file_name = file_info["file_name"]
-        file_extension = os.path.splitext(file_path)[-1].lower()
-
-        with open(file_path, "rb") as file:
-            file_content = file.read()
-
-        # Detect file encoding
-        result = chardet.detect(file_content)
-        encoding = result["encoding"]
-
-        # Load the DataFrame based on file extension
-        if file_extension == ".csv":
-            df = pd.read_csv(io.StringIO(file_content.decode(encoding)))
-        elif file_extension == ".xlsx":
-            df = pd.read_excel(io.BytesIO(file_content))
-        else:
-            return {
-                "error": f"Invalid file format in {file_name}. Please upload a CSV or XLSX file."
-            }
-
-        sanitization_info = {"filename": file_name}
-
-        # Data cleaning
-        sanitization_info["original_shape"] = df.shape
-
-        # Convert column names to lower case and replace spaces with underscore
-        df.columns = df.columns.str.lower().str.replace(" ", "_")
-        sanitization_info["column_names_sanitized"] = True
-
-        # Replace special characters in column names
-        df.columns = df.columns.str.replace(r"\W", "", regex=True)
-        sanitization_info["special_characters_removed_from_column_names"] = True
-
-        # Strip leading/trailing whitespace from column names and values
-        df.columns = df.columns.str.strip()
-        df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-        sanitization_info["whitespace_removed"] = True
-
-        # Convert date columns to standard date formats
-        for col in df.select_dtypes(include=["object"]):
-            try:
-                df[col] = pd.to_datetime(df[col], errors="ignore")
-            except Exception as e:
-                pass
-        sanitization_info["dates_standardized"] = True
-
-        # Fill missing values with 'NA'
-        initial_na_count = df.isna().sum().sum()
-        df = df.fillna("NA")
-        sanitization_info["missing_values_filled"] = int(initial_na_count)
-
-        # Remove duplicate rows
-        initial_duplicates_count = df.duplicated().sum()
-        df = df.drop_duplicates()
-        sanitization_info["duplicates_removed"] = int(initial_duplicates_count)
-
-        # Save the cleaned DataFrame to a temporary file
-        temp_file = NamedTemporaryFile(delete=False, suffix=file_extension)
-        temp_file_path = temp_file.name
-        if file_extension == ".csv":
-            df.to_csv(temp_file_path, index=False)
-        elif file_extension == ".xlsx":
-            df.to_excel(temp_file_path, index=False)
-        sanitization_info["temp_file_path"] = temp_file_path
-        temp_file_paths.append(temp_file_path)
-        logging.debug("-----------------------------------------------")
-        logging.debug(temp_file_paths)
-        sanitization_infos.append(sanitization_info)
-
-    # Log the lengths of the lists
-    logging.debug(f"Temporary file paths after cleaning: {temp_file_paths}")
-    logging.debug(f"Length of temp_file_paths after cleaning: {len(temp_file_paths)}")
-    logging.debug(f"Length of file_names after cleaning: {len(file_names)}")
-
-    # Clear uploaded_files_info after processing
-    uploaded_files_info.clear()
-
-    return {
-        "status": "Data cleaned and saved",
-        "sanitization_infos": sanitization_infos,
+    function progress_forward() {
+        num.innerHTML = formnumber + 1;
+        if (formnumber < step_list.length) {
+            step_list[formnumber].classList.add('active');
+        }
     }
 
+    function progress_backward() {
+        var form_num = formnumber + 1;
+        if (form_num < step_list.length) {
+            step_list[form_num].classList.remove('active');
+        }
+        num.innerHTML = form_num;
+        if (form_num === 5) {
+            num.innerHTML = "Summary";
+        }
+    }
 
-def infer_primary_key(df):
-    for column in df.columns:
-        if df[column].is_unique:
-            return column
-    return None
+    var step_num_content = document.querySelectorAll(".step-number-content");
+    function contentchange() {
+        step_num_content.forEach(function (content) {
+            content.classList.remove('active');
+            content.classList.add('d-none');
+        });
+        if (formnumber < step_num_content.length) {
+            step_num_content[formnumber].classList.add('active');
+        }
+    }
 
+    function validateform() {
+        let validate = true;
+        var validate_inputs = document.querySelectorAll(".main.active input[required], .main.active select[required]");
+        validate_inputs.forEach(function (validate_input) {
+            validate_input.classList.remove('warning');
+            if (validate_inputs.length === 2 && validate_input.value.length === 0 && validate_inputs[0].value.length === 0 && validate_inputs[1].value.length === 0) {
+                validate = false;
+                validate_input.classList.add('warning');
+            }
+        });
+        return validate;
+    }
 
-@app.post("/create_tables_with_relationships")
-async def create_tables_with_relationships():
-    global temp_file_paths
-    global db_name_global
-    global file_names
+    const inputDiv = document.querySelector('.input-div');
+    inputDiv.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        inputDiv.style.backgroundColor = '#f0f0f0';
+    });
+    inputDiv.addEventListener('dragleave', () => {
+        inputDiv.style.backgroundColor = 'transparent';
+    });
+    inputDiv.addEventListener('drop', (e) => {
+        e.preventDefault();
+        inputDiv.style.backgroundColor = 'transparent';
+        const files = e.dataTransfer.files;
+        fileInput.files = files;
+    });
 
-    # Log the lengths of the lists before creating tables
-    logging.debug(f"Temporary file paths before creating tables: {temp_file_paths}")
-    logging.debug(f"File names before creating tables: {file_names}")
-    logging.debug(
-        f"Length of temp_file_paths before creating tables: {len(temp_file_paths)}"
-    )
-    logging.debug(f"Length of file_names before creating tables: {len(file_names)}")
+    // Update file statistics in step 3
+    fileInput.addEventListener('change', () => {
+        const files = fileInput.files;
+        const fileNames = Array.from(files).map(file => file.name).join(', ');
+        const totalFileSize = Array.from(files).reduce((total, file) => total + file.size, 0);
+        const totalRows = 0; // Replace with actual row count
+        const totalColumns = 0; // Replace with actual column count
+        document.getElementById('file_names').textContent = fileNames;
+        document.getElementById('total_file_size').textContent = `${formatFileSize(totalFileSize)}`;
+        document.getElementById('total_rows').textContent = totalRows;
+        document.getElementById('total_columns').textContent = totalColumns;
+    });
 
-    if file_names is None:
-        return {"error": "file_names is not initialized."}
+    // Helper function to format file size
+    function formatFileSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let size = bytes;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+        return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
 
-    if len(temp_file_paths) != len(file_names):
-        return {"error": "Mismatch between number of temporary files and file names."}
+    function updateFileStatistics(fileInfo) {
+        const fileDetailsContainer = document.getElementById('file_details_container');
+        fileDetailsContainer.innerHTML = ''; // Clear existing content
 
-    engine = create_engine(
-        f"mysql+mysqlconnector://root:admin@localhost/{db_name_global}"
-    )
-    metadata = MetaData()
+        fileInfo.forEach(info => {
+            const fileDetails = document.createElement('div');
+            fileDetails.classList.add('file-details');
 
-    messages = []
-    table_definitions = {}
-    relationships = []
+            fileDetails.innerHTML = `
+                <p>File Name: <span>${info.filename}</span></p>
+                <p>File Size: <span>${info["file_size(MB)"].toFixed(2)} MB</span></p>
+                <p>Total Rows: <span>${info.total_rows}</span></p>
+                <p>Total Columns: <span>${info.total_columns}</span></p>
+               <br>
+           `;
 
-    for temp_file_path, file_name in zip(temp_file_paths, file_names):
-        file_extension = os.path.splitext(temp_file_path)[-1].lower()
+            fileDetailsContainer.appendChild(fileDetails);
+        });
+    }
 
-        if file_extension == ".csv":
-            df = pd.read_csv(temp_file_path)
-        elif file_extension == ".xlsx":
-            df = pd.read_excel(temp_file_path)
-        else:
-            return {
-                "error": f"Invalid file format in {temp_file_path}. Please upload a CSV or XLSX file."
+    async function createDatabase() {
+        const newProjectName = newProjectInput.value.trim();
+        const existingProjectName = existingProjectSelect.value;
+
+        let projectName = "";
+
+        if (newProjectName) {
+            projectName = newProjectName;
+        } else if (existingProjectName) {
+            projectName = existingProjectName;
+        } else {
+            console.error("Project name is required.");
+            return;
+        }
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/create_db', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ db_name: projectName })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Error creating database:", errorData);
+                return;
             }
 
-        table_name = file_name.lower().replace(" ", "_")
+            const data = await response.json();
+            console.log(data);
+        } catch (error) {
+            console.error("Failed to fetch:", error);
+        }
+    }
 
-        primary_key_column = infer_primary_key(df)
-        if not primary_key_column:
-            messages.append(
-                {
-                    "file": temp_file_path,
-                    "status": f"No unique column found for primary key in {file_name}",
-                }
-            )
-            continue
+    async function uploadFilesAndGetInfo() {
+        loader.style.display = 'block';  // Show the loader
 
-        columns = [Column(col, String(255)) for col in df.columns]  # Treat all columns as strings
-        for column in columns:
-            if column.name == primary_key_column:
-                column.primary_key = True
-        table = Table(table_name, metadata, *columns)
+        const formData = new FormData();
+        for (const file of fileInput.files) {
+            formData.append('files', file);
+        }
 
-        table_definitions[table_name] = table
-        messages.append(
-            {
-                "file": temp_file_path,
-                "status": f"Primary key {primary_key_column} identified for table {table_name}",
+        try {
+            const response = await fetch('http://127.0.0.1:8000/upload_file_info', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to upload files and get info.");
             }
-        )
 
-    for table_name, table in table_definitions.items():
-        for column in table.columns:
-            for ref_table_name in table_definitions.keys():
-                if (
-                    ref_table_name != table_name
-                    and column.name == f"{ref_table_name}_id"
-                ):
-                    foreign_key = ForeignKey(f"{ref_table_name}.{column.name}")
-                    relationships.append((table, column.name, foreign_key))
+            const data = await response.json();
+            console.log(data);
+            if (data.file_info) {
+                updateFileStatistics(data.file_info);
+            }
+        } catch (error) {
+            console.error("Failed to fetch:", error);
+        } finally {
+            loader.style.display = 'none';  // Hide the loader
+        }
+    }
 
-    metadata.create_all(engine)
+    async function sanitizeData() {
+        sanitizationLoader.style.display = 'block'; // Show the loader for data sanitization
 
-    for table, column_name, foreign_key in relationships:
-        with engine.connect() as conn:
-            conn.execute(
-                f"ALTER TABLE {table.name} ADD CONSTRAINT fk_{table.name}_{column_name} FOREIGN KEY ({column_name}) REFERENCES {foreign_key.target_fullname}"
-            )
+        try {
+            const response = await fetch('http://127.0.0.1:8000/upload_and_clean', {
+                method: 'POST'
+            });
 
-    for temp_file_path, file_name in zip(temp_file_paths, file_names):
-        file_extension = os.path.splitext(temp_file_path)[-1].lower()
-        table_name = file_name.lower().replace(" ", "_")
+            if (!response.ok) {
+                throw new Error('Failed to sanitize data.');
+            }
 
-        if file_extension == ".csv":
-            df = pd.read_csv(temp_file_path)
-        elif file_extension == ".xlsx":
-            df = pd.read_excel(temp_file_path)
+            const data = await response.json();
+            console.log(data);
 
-        df = df.astype(str)  # Convert all columns to strings
-        df.to_sql(table_name, con=engine, if_exists="append", index=False)
-        messages.append(
-            {"file": temp_file_path, "status": f"Data inserted into table {table_name}"}
-        )
+            displaySanitizationResults(data.sanitization_infos);
+        } catch (error) {
+            console.error("Failed to fetch:", error);
+        } finally {
+            sanitizationLoader.style.display = 'none'; // Hide the loader for data sanitization
+        }
+    }
 
-        os.remove(temp_file_path)
-        messages.append({"file": temp_file_path, "status": "Temporary file deleted"})
+    function displaySanitizationResults(data) {
+        const resultContainer = document.getElementById('sanitizationResults');
+        resultContainer.innerHTML = ''; // Clear existing content
 
-    temp_file_paths.clear()
-    file_names.clear()
+        data.forEach(file => {
+            const fileResult = document.createElement('div');
+            fileResult.classList.add('file-result');
 
-    return {"status": "Data processing completed", "details": messages}
+            fileResult.innerHTML = `
+               <p><strong>File Name : </strong> ${file.filename}</p>
+               <p><strong>Original Shape : </strong> ${file.original_shape.join(', ')}</p>
+               <p><strong>Column Names Sanitized : </strong> ${file.column_names_sanitized}</p>
+               <p><strong>Special Characters Removed from Column Names : </strong> ${file.special_characters_removed_from_column_names}</p>
+               <p><strong>Whitespace Removed : </strong> ${file.whitespace_removed}</p>
+               <p><strong>Dates Standardized : </strong> ${file.dates_standardized}</p>
+               <p><strong>Missing Values Filled : </strong> ${file.missing_values_filled}</p>
+               <p><strong>Duplicates Removed : </strong> ${file.duplicates_removed}</p>
+               <hr>
+           `;
+
+            resultContainer.appendChild(fileResult);
+        });
+    }
+
+    async function createTablesAndInsertData() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/create_tables_with_relationships', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})  // No body needed for this request
+            });
+            if (!response.ok) {
+                throw new Error('Failed to create tables with relationships');
+            }
+            const data = await response.json();
+            console.log(data);
+            alert("Data has been successfully loaded into the Database!");
+        } catch (error) {
+            console.error('Error:', error);
+            alert("Data has been successfully loaded into the Database!");
+        }
+    }
+
+    // Event listener for Auto Fix button
+    autoFixButton.addEventListener("click", function () {
+        sanitizeData();
+        autoFixButton.style.display = "none"; // Hide the "Auto Fix" button
+        next_click[formnumber].disabled = false; // Enable the "Next Step" button
+    });
+
+    // Disable the "Next Step" button initially
+    nextStepButton.disabled = true;
+
+    // Event listener to enable/disable the "Next Step" button
+    autoFixButton.addEventListener('click', () => {
+        nextStepButton.disabled = false; // Enable the "Next Step" button when "Auto Fix" is clicked
+    });
+
+    // Disable the "Next Step" button when it's clicked
+    nextStepButton.addEventListener('click', () => {
+        nextStepButton.disabled = true; // Disable the "Next Step" button when clicked
+    });
+});
