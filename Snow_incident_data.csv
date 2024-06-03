@@ -1,0 +1,16 @@
+incident_id,employee_id,caller_id,incident_date,incident_status,incident_priority,incident_description,incident_resolution
+INC001,E001,Caller 001,2022-01-01,Resolved,High,System outage,Restarted the system
+INC002,E002,Caller 002,2022-01-02,In Progress,Low,Software update,NA
+INC003,E003,Caller 003,2022-01-03,Resolved,Medium,Password reset,Reset the password
+INC004,E004,Caller 004,2022-01-04,Open,High,Network issue,NA
+INC005,E005,Caller 005,2022-01-05,In Progress,Low,Browser issue,NA
+INC006,E006,Caller 006,2022-01-06,Resolved,Medium,Email issue,Resolved email configuration
+INC007,E007,Caller 007,2022-01-07,Open,High,Hardware failure,NA
+INC008,E008,Caller 008,2022-01-08,In Progress,Low,Software installation,NA
+INC009,E009,Caller 009,2022-01-09,Resolved,Medium,Login issue,Reset the password
+INC010,E010,Caller 010,2022-01-10,Open,High,Data loss,NA
+INC011,E011,Caller 011,2022-01-11,In Progress,Low,Software update,NA
+INC012,E012,Caller 012,2022-01-12,Resolved,Medium,Password reset,Reset the password
+INC013,E013,Caller 013,2022-01-13,Open,High,Network issue,NA
+INC014,E014,Caller 014,2022-01-14,In Progress,Low,Browser issue,NA
+INC015,E015,Caller 015,2022-01-15,Resolved,Medium,Email issue,Resolved email configuration
